@@ -1,7 +1,7 @@
 # Creating an Express Node.js Server for a Simple Leaflet Webmap
 
-Ioannis Kontopoulos <kontopoulos@hua.gr>
-Marinos Kouvaras <marinoskouvaras@gmail.com>  
+* Ioannis Kontopoulos <kontopoulos@hua.gr>
+* Marinos Kouvaras <marinoskouvaras@gmail.com>  
   
 A tutorial for creating a leaflet webmap with express in Node.js
 
