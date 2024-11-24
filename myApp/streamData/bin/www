@@ -21,6 +21,30 @@ app.set('port', port);
 
 var server = http.createServer(app);
 
+// Add Socket.IO setup
+var io = require('socket.io')(server);
+
+// Socket.IO connection handler
+io.on('connection', (socket) => {
+  console.log('Client connected');
+  let currentIndex = 0;
+
+  // Emit vessel positions every second
+  const streamInterval = setInterval(() => {
+    if (currentIndex >= app.locals.vesselData.length) {
+      currentIndex = 0; // Reset to beginning when reaching the end
+    }
+
+    socket.emit('vesselUpdate', app.locals.vesselData[currentIndex]);
+    currentIndex++;
+  }, 1000); // 1 second interval
+
+  socket.on('disconnect', () => {
+    clearInterval(streamInterval);
+    console.log('Client disconnected');
+  });
+});
+
 /**
  * Listen on provided port, on all network interfaces.
  */
