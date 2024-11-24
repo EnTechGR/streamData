@@ -26,28 +26,71 @@ var io = require('socket.io')(server);
 
 // Socket.IO connection handler
 io.on('connection', (socket) => {
-  console.log('Client connected');
-  let currentIndex = 0;
+    console.log('Client connected');
+    let currentIndex = 0;
+    let streamSpeed = 1000; // Default 1 second interval
+    let isPaused = false;
+    let streamInterval;
 
-  // Emit vessel positions every second
-  const streamInterval = setInterval(() => {
-    if (currentIndex >= app.locals.vesselData.length) {
-      currentIndex = 0; // Reset to beginning when reaching the end
-    }
+    // Emit initial loading status
+    socket.emit('loadingStatus', {
+        loaded: app.locals.dataLoaded,
+        currentPart: app.locals.currentLoadingPart,
+        totalRecords: app.locals.vesselData.length
+    });
 
-    socket.emit('vesselUpdate', app.locals.vesselData[currentIndex]);
-    currentIndex++;
-  }, 1000); // 1 second interval
+    // Function to start streaming
+    const startStreaming = () => {
+        if (streamInterval) {
+            clearInterval(streamInterval);
+        }
 
-  socket.on('disconnect', () => {
-    clearInterval(streamInterval);
-    console.log('Client disconnected');
-  });
+        streamInterval = setInterval(() => {
+            if (!isPaused && app.locals.dataLoaded && app.locals.vesselData.length > 0) {
+                if (currentIndex >= app.locals.vesselData.length) {
+                    currentIndex = 0;
+                }
+
+                // Get current timestamp
+                const currentTimestamp = app.locals.vesselData[currentIndex].timestamp;
+                const vesselUpdates = [];
+
+                // Collect all vessels with the same timestamp
+                while (currentIndex < app.locals.vesselData.length && 
+                       app.locals.vesselData[currentIndex].timestamp === currentTimestamp) {
+                    vesselUpdates.push(app.locals.vesselData[currentIndex]);
+                    currentIndex++;
+                }
+
+                if (vesselUpdates.length > 0) {
+                    socket.emit('timestampUpdate', currentTimestamp);
+                    socket.emit('vesselUpdates', vesselUpdates);
+                }
+            }
+        }, streamSpeed);
+    };
+
+    // Start streaming after a short delay to allow for initial data loading
+    setTimeout(startStreaming, 1000);
+
+    // Handle speed change requests
+    socket.on('setSpeed', (speed) => {
+        streamSpeed = speed;
+        startStreaming();
+    });
+
+    // Handle pause/resume requests
+    socket.on('setPaused', (paused) => {
+        isPaused = paused;
+    });
+
+    socket.on('disconnect', () => {
+        if (streamInterval) {
+            clearInterval(streamInterval);
+        }
+        console.log('Client disconnected');
+    });
 });
-
-/**
- * Listen on provided port, on all network interfaces.
- */
 
 server.listen(port);
 server.on('error', onError);
