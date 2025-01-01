@@ -2,14 +2,14 @@ import os
 import pandas as pd
 
 # Define the input file and output directory
-input_file = r"C:<your-path>\argosaronic_gulf_march_2020_part_1\argosaronic_gulf_march_2020_part_1.csv"
-output_dir = r"C:<your-path>\streamData\myApp\streamData\data\argosaronic_gulf_march_2020_part_1\split_files"
+input_file = r"/mnt/c/Users/marin/Documents/streamData/argosaronic_gulf_march_2020_part_1/argosaronic_gulf_march_2020_part_1.csv"
+output_dir = r"/mnt/c/Users/marin/Documents/streamData/myApp/streamData/data/argosaronic_gulf_march_2020_part_1"
 
 # Create the output directory if it doesn't exist
 os.makedirs(output_dir, exist_ok=True)
 
 # Read the large CSV file in chunks
-chunk_size = 1000000  # Number of rows per chunk (you can adjust this for your desired file size)
+chunk_size = 500000  # Number of rows per chunk (you can adjust this for your desired file size)
 df = pd.read_csv(input_file)
 
 # Calculate the number of chunks needed
