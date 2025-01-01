@@ -68,8 +68,8 @@ function readCSVFile(filePath, partNumber) {
 // Function to read CSV files sequentially
 async function loadAllCSVFiles() {
     try {
-        const baseDir = path.join(__dirname, 'data/argosaronic_gulf_march_2020_part_1/split_files');
-        const numberOfParts = 6;
+        const baseDir = path.join(__dirname, './data/argosaronic_gulf_march_2020_part_1');
+        const numberOfParts = 11;
 
         for (let i = 1; i <= numberOfParts; i++) {
             const filePath = path.join(baseDir, `part_${i}.csv`);
