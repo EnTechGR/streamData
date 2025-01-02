@@ -1,36 +1,33 @@
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var csv = require('csv-parser');
-var readline = require('readline');
-var fs = require('fs');
+// Import required modules
+var express = require('express'); // Framework for building web applications
+var path = require('path'); // Utility for handling file and directory paths
+var cookieParser = require('cookie-parser'); // Middleware for parsing cookies
+var logger = require('morgan'); // Middleware for logging HTTP requests
+var csv = require('csv-parser'); // Library for parsing CSV files
+var readline = require('readline'); // Library for creating interfaces for reading lines
+var fs = require('fs'); // File system module
 
-
+// Import route handlers
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
-const { Readline } = require('readline/promises');
-const { call } = require('file-loader');
 
+// Express application instance
 var app = express();
 
-// Store vessel data with a more efficient structure
-//app.locals.vesselData = [];
-//app.locals.dataLoaded = false;
-//app.locals.currentLoadingPart = 1;
-
+// Define application-wide local variables for tracking streaming status
 app.locals.streamingStatus = {
-    isStreaming: false,
-    currentFile: 1,
-    totalFiles: 11,
-    currentLine: 0,
-    totalLines: 0
-}
+    isStreaming: false, // Indicates if streaming is currently active
+    currentFile: 1, // Tracks the current file being processed
+    totalFiles: 11, // Total number of files to process
+    currentLine: 0, // Tracks the current line being processed in a file
+    totalLines: 0 // Tracks the total number of lines processed
+};
 
+// Function to parse a line from a CSV file
 function parseCSVLine(line) {
     const parts = line.split(',');
-    if (parts[0]==='timestamp') {
-        return null;
+    if (parts[0] === 'timestamp') {
+        return null; // Skip the header line
     }
     return {
         timestamp: parts[0],
@@ -49,61 +46,63 @@ function parseCSVLine(line) {
         size_bow: parseFloat(parts[13]) || 0,
         size_stern: parseFloat(parts[14]) || 0,
         size_port: parseFloat(parts[15]) || 0,
-        size_starboard: parseFloat(parts[16]) || 0,
-        destinations: parts[17]       
+        size_starboard: parts[16] || 0,
+        destinations: parts[17]
     };
 }
 
+// Function to create a line reader for a given file path
 function createLineReader(filePath) {
-    const fileStream = fs.createReadStream(filePath)
+    const fileStream = fs.createReadStream(filePath); // Create a file stream
     return readline.createInterface({
         input: fileStream,
-        crlfDelay: Infinity
+        crlfDelay: Infinity // Support platforms with different line endings
     });
 }
 
-// Function to stream data to connected clients
+// Function to stream data to connected clients via WebSocket (using socket.io)
 function streamDataToClients(io) {
-    let currentFileIndex = 1;
-    const baseDir = path.join(__dirname, './data/argosaronic_gulf_march_2020_part_1');
-    
+    let currentFileIndex = 1; // Start with the first file
+    const baseDir = path.join(__dirname, './data/argosaronic_gulf_march_2020_part_1'); // Directory containing files
+
     async function processNextFile() {
+        // Reset to the first file if all files have been processed
         if (currentFileIndex > app.locals.streamingStatus.totalFiles) {
-            currentFileIndex = 1; // Reset to first file to loop continuously
+            currentFileIndex = 1;
         }
 
-        const filePath = path.join(baseDir, `part_${currentFileIndex}.csv`);
+        const filePath = path.join(baseDir, `part_${currentFileIndex}.csv`); // Construct file path
         if (!fs.existsSync(filePath)) {
             console.log(`File not found: part_${currentFileIndex}.csv`);
             currentFileIndex++;
-            return processNextFile();
+            return processNextFile(); // Skip to the next file
         }
 
-        app.locals.streamingStatus.currentFile = currentFileIndex;
+        app.locals.streamingStatus.currentFile = currentFileIndex; // Update current file in status
         const lineReader = createLineReader(filePath);
-        let isFirstLine = true;
+        let isFirstLine = true; // Flag to skip the header line
 
+        // Process each line in the file
         for await (const line of lineReader) {
             if (isFirstLine) {
                 isFirstLine = false;
                 continue; // Skip header
             }
 
-            const vesselData = parseCSVLine(line);
+            const vesselData = parseCSVLine(line); // Parse the line into an object
             if (vesselData) {
-                // Emit to all connected clients
-                io.emit('vesselUpdates', [vesselData]);
-                io.emit('timestampUpdate', vesselData.timestamp);
+                io.emit('vesselUpdates', [vesselData]); // Emit vessel data to clients
+                io.emit('timestampUpdate', vesselData.timestamp); // Emit timestamp update
                 
-                // Simulate real-time delay
+                // Simulate a delay to mimic real-time streaming
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
-            app.locals.streamingStatus.currentLine++;
+            app.locals.streamingStatus.currentLine++; // Increment processed line count
         }
 
-        currentFileIndex++;
-        processNextFile();
+        currentFileIndex++; // Move to the next file
+        processNextFile(); // Process the next file recursively
     }
 
     // Start the streaming process
@@ -111,106 +110,21 @@ function streamDataToClients(io) {
     processNextFile();
 }
 
-// Function to process CSV data in chunks
-// function processCSVChunk(chunk) {
-//     return {
-//         timestamp: chunk.timestamp,
-//         mmsi: chunk.mmsi,
-//         longitude: parseFloat(chunk.longitude),
-//         latitude: parseFloat(chunk.latitude),
-//         ship_name: chunk.ship_name,
-//         ship_type: chunk.ship_type,
-//         heading: parseFloat(chunk.heading) || 0,
-//         speed: parseFloat(chunk.sog) || 0
-//     };
-// }
+// Middleware setup
+app.use(logger('dev')); // Log HTTP requests
+app.use(express.json()); // Parse JSON payloads
+app.use(express.urlencoded({ extended: false })); // Parse URL-encoded payloads
+app.use(cookieParser()); // Parse cookies
+app.use(express.static(path.join(__dirname, 'public'))); // Serve static files
 
-// Function to read a single CSV file with stream processing
-// function readCSVFile(filePath, partNumber) {
-//     return new Promise((resolve, reject) => {
-//         const tempData = [];
-//         console.log(`Starting to read part ${partNumber}`);
-        
-//         fs.createReadStream(filePath)
-//             .pipe(csv())
-//             .on('data', (chunk) => {
-//                 try {
-//                     tempData.push(processCSVChunk(chunk));
-                    
-//                     // Process in smaller batches to avoid memory issues
-//                     if (tempData.length >= 10000) {
-//                         app.locals.vesselData.push(...tempData);
-//                         tempData.length = 0; // Clear the temporary array
-//                     }
-//                 } catch (error) {
-//                     console.error('Error processing chunk:', error);
-//                 }
-//             })
-//             .on('end', () => {
-//                 // Push any remaining data
-//                 if (tempData.length > 0) {
-//                     app.locals.vesselData.push(...tempData);
-//                 }
-//                 console.log(`Finished reading part ${partNumber}. Current total records: ${app.locals.vesselData.length}`);
-//                 resolve();
-//             })
-//             .on('error', (error) => {
-//                 console.error(`Error reading part ${partNumber}:`, error);
-//                 reject(error);
-//             });
-//     });
-// }
-
-// // Function to read CSV files sequentially
-// async function loadAllCSVFiles() {
-//     try {
-//         const baseDir = path.join(__dirname, './data/argosaronic_gulf_march_2020_part_1');
-//         const numberOfParts = 11;
-
-//         for (let i = 1; i <= numberOfParts; i++) {
-//             const filePath = path.join(baseDir, `part_${i}.csv`);
-//             app.locals.currentLoadingPart = i;
-
-//             if (fs.existsSync(filePath)) {
-//                 await readCSVFile(filePath, i);
-//                 console.log(`Successfully loaded part ${i}`);
-//             } else {
-//                 console.log(`File not found: part_${i}.csv`);
-//             }
-//         }
-
-//         // Sort data by timestamp after loading all files
-//         console.log('Sorting data by timestamp...');
-//         app.locals.vesselData.sort((a, b) => 
-//             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-//         );
-
-//         app.locals.dataLoaded = true;
-//         console.log(`All parts loaded. Total records: ${app.locals.vesselData.length}`);
-//     } catch (error) {
-//         console.error('Error loading CSV files:', error);
-//         app.locals.dataLoaded = true; // Set to true even on error to prevent hanging
-//     }
-// }
-
-// Start loading the CSV files
-//loadAllCSVFiles();
-
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
-
+// Use defined routes
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 
-// Add endpoint to check streaming status
+// API endpoint to check streaming status
 app.get('/api/streaming-status', (req, res) => {
-    res.json(app.locals.streamingStatus);
+    res.json(app.locals.streamingStatus); // Respond with current streaming status
 });
 
-module.exports = app;
-
-// Export both app and streamDataToClients function
+// Export the app and the streamDataToClients function
 module.exports = { app, streamDataToClients };
