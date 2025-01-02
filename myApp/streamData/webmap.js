@@ -111,11 +111,16 @@ socket.on('vesselUpdates', (vessels) => {
             // Create new marker with custom icon
             markers[vessel.mmsi] = L.marker([vessel.latitude, vessel.longitude], { icon: vesselIcon })
                 .bindPopup(`
-                    Ship: ${vessel.ship_name}<br>
-                    MMSI: ${vessel.mmsi}<br>
-                    Type: ${vessel.ship_type}<br>
-                    Speed: ${vessel.speed} knots<br>
-                    Heading: ${vessel.heading}°
+                    mmsi: ${vessel.mmsi}<br>
+                    imo: ${vessel.imo}<br>
+                    Navigational status: ${vessel.navigational_status}<br>
+                    Heading: ${vessel.heading}°<br>
+                    cog: ${vessel.cog}°<br>
+                    sog: ${vessel.sog} knots<br>
+                    Ship name: ${vessel.ship_name}<br>
+                    callsign: ${vessel.callsign}<br>
+                    ship type: ${vessel.ship_type}<br>
+                    destination: ${vessel.destinations}                    
                 `)
                 .addTo(map);
         } else {

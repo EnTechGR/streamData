@@ -10,6 +10,7 @@ var fs = require('fs');
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 const { Readline } = require('readline/promises');
+const { call } = require('file-loader');
 
 var app = express();
 
@@ -34,12 +35,22 @@ function parseCSVLine(line) {
     return {
         timestamp: parts[0],
         mmsi: parts[1],
+        imo: parts[2],
+        navigational_status: parts[3],
         longitude: parseFloat(parts[4]),
         latitude: parseFloat(parts[5]),
-        ship_name: parts[9],
-        ship_type: parts[11],
         heading: parseFloat(parts[6]) || 0,
-        speed: parseFloat(parts[7]) || 0
+        cog: parseFloat(parts[7]) || 0,
+        sog: parseFloat(parts[8]) || 0,
+        ship_name: parts[9],
+        callsign: parts[10],
+        ship_type: parts[11],
+        draught: parseFloat(parts[12]) || 0,
+        size_bow: parseFloat(parts[13]) || 0,
+        size_stern: parseFloat(parts[14]) || 0,
+        size_port: parseFloat(parts[15]) || 0,
+        size_starboard: parseFloat(parts[16]) || 0,
+        destinations: parts[17]       
     };
 }
 
