@@ -3,22 +3,19 @@
 /**
  * Module dependencies.
  */
-
-var app = require('../app');
+var { app, streamDataToClients } = require('../app');
 var debug = require('debug')('streamdata:server');
 var http = require('http');
 
 /**
  * Get port from environment and store in Express.
  */
-
 var port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
 
 /**
  * Create HTTP server.
  */
-
 var server = http.createServer(app);
 
 // Add Socket.IO setup
@@ -27,71 +24,22 @@ var io = require('socket.io')(server);
 // Socket.IO connection handler
 io.on('connection', (socket) => {
     console.log('Client connected');
-    let currentIndex = 0;
-    let streamSpeed = 1000; // Default 1 second interval
-    let isPaused = false;
-    let streamInterval;
 
-    // Emit initial loading status
-    socket.emit('loadingStatus', {
-        loaded: app.locals.dataLoaded,
-        currentPart: app.locals.currentLoadingPart,
-        totalRecords: app.locals.vesselData.length
-    });
+    // Emit initial streaming status
+    socket.emit('streamingStatus', app.locals.streamingStatus);
 
-    // Function to start streaming
-    const startStreaming = () => {
-        if (streamInterval) {
-            clearInterval(streamInterval);
-        }
-
-        streamInterval = setInterval(() => {
-            if (!isPaused && app.locals.dataLoaded && app.locals.vesselData.length > 0) {
-                if (currentIndex >= app.locals.vesselData.length) {
-                    currentIndex = 0;
-                }
-
-                // Get current timestamp
-                const currentTimestamp = app.locals.vesselData[currentIndex].timestamp;
-                const vesselUpdates = [];
-
-                // Collect all vessels with the same timestamp
-                while (currentIndex < app.locals.vesselData.length && 
-                       app.locals.vesselData[currentIndex].timestamp === currentTimestamp) {
-                    vesselUpdates.push(app.locals.vesselData[currentIndex]);
-                    currentIndex++;
-                }
-
-                if (vesselUpdates.length > 0) {
-                    socket.emit('timestampUpdate', currentTimestamp);
-                    socket.emit('vesselUpdates', vesselUpdates);
-                }
-            }
-        }, streamSpeed);
-    };
-
-    // Start streaming after a short delay to allow for initial data loading
-    setTimeout(startStreaming, 1000);
-
-    // Handle speed change requests
-    socket.on('setSpeed', (speed) => {
-        streamSpeed = speed;
-        startStreaming();
-    });
-
-    // Handle pause/resume requests
-    socket.on('setPaused', (paused) => {
-        isPaused = paused;
-    });
-
+    // Log disconnection
     socket.on('disconnect', () => {
-        if (streamInterval) {
-            clearInterval(streamInterval);
-        }
         console.log('Client disconnected');
     });
 });
 
+// Start streaming data to clients
+streamDataToClients(io);
+
+/**
+ * Start the server.
+ */
 server.listen(port);
 server.on('error', onError);
 server.on('listening', onListening);
@@ -99,59 +47,56 @@ server.on('listening', onListening);
 /**
  * Normalize a port into a number, string, or false.
  */
-
 function normalizePort(val) {
-  var port = parseInt(val, 10);
+    var port = parseInt(val, 10);
 
-  if (isNaN(port)) {
-    // named pipe
-    return val;
-  }
+    if (isNaN(port)) {
+        // named pipe
+        return val;
+    }
 
-  if (port >= 0) {
-    // port number
-    return port;
-  }
+    if (port >= 0) {
+        // port number
+        return port;
+    }
 
-  return false;
+    return false;
 }
 
 /**
  * Event listener for HTTP server "error" event.
  */
-
 function onError(error) {
-  if (error.syscall !== 'listen') {
-    throw error;
-  }
+    if (error.syscall !== 'listen') {
+        throw error;
+    }
 
-  var bind = typeof port === 'string'
-    ? 'Pipe ' + port
-    : 'Port ' + port;
+    var bind = typeof port === 'string'
+        ? 'Pipe ' + port
+        : 'Port ' + port;
 
-  // handle specific listen errors with friendly messages
-  switch (error.code) {
-    case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
-      process.exit(1);
-      break;
-    case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
-      process.exit(1);
-      break;
-    default:
-      throw error;
-  }
+    // handle specific listen errors with friendly messages
+    switch (error.code) {
+        case 'EACCES':
+            console.error(bind + ' requires elevated privileges');
+            process.exit(1);
+            break;
+        case 'EADDRINUSE':
+            console.error(bind + ' is already in use');
+            process.exit(1);
+            break;
+        default:
+            throw error;
+    }
 }
 
 /**
  * Event listener for HTTP server "listening" event.
  */
-
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+    var addr = server.address();
+    var bind = typeof addr === 'string'
+        ? 'pipe ' + addr
+        : 'port ' + addr.port;
+    debug('Listening on ' + bind);
 }
