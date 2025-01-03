@@ -19774,6 +19774,8 @@ const io = require('socket.io-client'); // Import Socket.IO for real-time commun
 const map = L.map('map').setView([37.93, 23.65], 12); // Set initial map view to specific coordinates and zoom level
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); // Add OpenStreetMap tiles to the map
 
+
+
 // Custom vessel icon
 const vesselIcon = L.icon({
     iconUrl: '/stylesheets/images/marker-icon.png', // Path to custom icon image
@@ -19823,9 +19825,33 @@ controlPanel.addTo(map); // Add the control to the map
 // Store markers and active vessels count
 const markers = {}; // Object to store markers by vessel MMSI
 let activeVessels = new Set(); // Set to track active vessels by MMSI
-
+const trackingHistory = {}; // Object to store tracking history by vessel MMSI
+let polylines = {}; // Object to store polylines for vessels
 // Connect to Socket.IO
 const socket = io(); // Initialize Socket.IO client
+
+// Function to update vessel history and draw the polyline
+function updateTrackingHistory(vessel) {
+    // Ensure history exists for this vessel
+    if (!trackingHistory[vessel.mmsi]) {
+        trackingHistory[vessel.mmsi] = []; // Initialize history array
+    }
+
+    // Add the current position to the history
+    trackingHistory[vessel.mmsi].push([vessel.latitude, vessel.longitude]);
+
+    // Limit history length to avoid excessive memory use
+    if (trackingHistory[vessel.mmsi].length > 1000) {
+        trackingHistory[vessel.mmsi].shift();
+    }
+
+    // Draw or update the polyline
+    if (polylines[vessel.mmsi]) {
+        polylines[vessel.mmsi].setLatLngs(trackingHistory[vessel.mmsi]); // Update polyline
+    } else {
+        polylines[vessel.mmsi] = L.polyline(trackingHistory[vessel.mmsi], { color: 'black' }).addTo(map);
+    }
+}
 
 // Handle streaming status updates from the server
 socket.on('streamingStatus', (status) => {
@@ -19898,16 +19924,33 @@ socket.on('vesselUpdates', (vessels) => {
         `;
         
         if (!markers[vessel.mmsi]) {
-            console.log('Creating new marker for vessel:', vessel.mmsi);
             // Create a new marker for the vessel
             markers[vessel.mmsi] = L.marker([vessel.latitude, vessel.longitude], { icon: vesselIcon })
                 .bindPopup(popupContent) // Set the popup content
-                .addTo(map); // Add marker to the map
+                .addTo(map)
+                .on('click', () => {
+                    // Draw tracking history when a vessel marker is clicked
+                    if (trackingHistory[vessel.mmsi] && trackingHistory[vessel.mmsi].length > 1) {
+                        polylines[vessel.mmsi]?.setStyle({ opacity: 1 }); // Make polyline visible
+                    } else {
+                        console.log('No tracking history available for this vessel.');
+                    }
+                });
         } else {
             // Update the position and popup content of an existing marker
             markers[vessel.mmsi].setLatLng([vessel.latitude, vessel.longitude]);
-            markers[vessel.mmsi].getPopup().setContent(popupContent);
+            markers[vessel.mmsi].getPopup().setContent(popupContent); // Update popup content
         }
+
+        // Update tracking history
+        updateTrackingHistory(vessel);
+    });
+});
+
+// Add a global click handler to hide other polylines
+map.on('click', () => {
+    Object.values(polylines).forEach(polyline => {
+        polyline.setStyle({ opacity: 0 }); // Hide polylines when the map is clicked
     });
 });
 
