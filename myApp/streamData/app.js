@@ -10,6 +10,7 @@ var fs = require('fs'); // File system module
 // Import route handlers
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
+const Vessel = require('./models/vessel');
 
 // Express application instance
 var app = express();
@@ -24,12 +25,12 @@ app.locals.streamingStatus = {
 };
 
 // Function to parse a line from a CSV file
-function parseCSVLine(line) {
+async function parseCSVLineAndSave(line) {
     const parts = line.split(',');
     if (parts[0] === 'timestamp') {
         return null; // Skip the header line
     }
-    return {
+    const vesselData = {
         timestamp: parts[0],
         mmsi: parts[1],
         imo: parts[2],
@@ -49,6 +50,8 @@ function parseCSVLine(line) {
         size_starboard: parts[16] || 0,
         destinations: parts[17]
     };
+    await Vessel.create(vesselData);
+    return vesselData
 }
 
 // Function to create a line reader for a given file path
@@ -89,13 +92,17 @@ function streamDataToClients(io) {
                 continue; // Skip header
             }
 
-            const vesselData = parseCSVLine(line); // Parse the line into an object
+            const vesselData = await parseCSVLineAndSave(line); // Parse the line into an object
             if (vesselData) {
-                io.emit('vesselUpdates', [vesselData]); // Emit vessel data to clients
-                io.emit('timestampUpdate', vesselData.timestamp); // Emit timestamp update
-                
-                // Simulate a delay to mimic real-time streaming
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                const savedData = await Vessel.findOne({ where: { timestamp: vesselData.timestamp } });
+                if (savedData) {
+                    // Emit the saved data to clients
+                    io.emit('vesselUpdates', [savedData]);
+                    io.emit('timestampUpdate', savedData.timestamp);
+
+                    // Simulate a delay for real-time streaming
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
             }
             
             app.locals.streamingStatus.currentLine++; // Increment processed line count

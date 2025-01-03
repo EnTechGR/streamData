@@ -19876,33 +19876,37 @@ socket.on('vesselUpdates', (vessels) => {
         // Update vessel count display
         document.getElementById('vesselCount').textContent = activeVessels.size;
 
+        // Define popup content with all vessel details
+        const popupContent = `
+            mmsi: ${vessel.mmsi}<br>
+            imo: ${vessel.imo}<br>
+            Navigational status: ${vessel.navigational_status}<br>
+            Longitude: ${vessel.longitude}<br>
+            Latitude: ${vessel.latitude}<br>
+            Heading: ${vessel.heading}°<br>
+            cog: ${vessel.cog}°<br>
+            sog: ${vessel.sog} knots<br>
+            Ship name: ${vessel.ship_name}<br>
+            Callsign: ${vessel.callsign}<br>
+            Ship type: ${vessel.ship_type}<br>
+            Draught: ${vessel.draught}<br>
+            Size (Bow): ${vessel.size_bow}<br>
+            Size (Stern): ${vessel.size_stern}<br>
+            Size (Port): ${vessel.size_port}<br>
+            Size (Starboard): ${vessel.size_starboard}<br>
+            Destination: ${vessel.destinations}
+        `;
+        
         if (!markers[vessel.mmsi]) {
             console.log('Creating new marker for vessel:', vessel.mmsi);
             // Create a new marker for the vessel
             markers[vessel.mmsi] = L.marker([vessel.latitude, vessel.longitude], { icon: vesselIcon })
-                .bindPopup(` <!-- Popup with vessel details -->
-                    mmsi: ${vessel.mmsi}<br>
-                    imo: ${vessel.imo}<br>
-                    Navigational status: ${vessel.navigational_status}<br>
-                    Heading: ${vessel.heading}°<br>
-                    cog: ${vessel.cog}°<br>
-                    sog: ${vessel.sog} knots<br>
-                    Ship name: ${vessel.ship_name}<br>
-                    callsign: ${vessel.callsign}<br>
-                    ship type: ${vessel.ship_type}<br>
-                    destination: ${vessel.destinations}                    
-                `)
+                .bindPopup(popupContent) // Set the popup content
                 .addTo(map); // Add marker to the map
         } else {
             // Update the position and popup content of an existing marker
             markers[vessel.mmsi].setLatLng([vessel.latitude, vessel.longitude]);
-            markers[vessel.mmsi].getPopup().setContent(` <!-- Simplified popup content -->
-                Ship: ${vessel.ship_name}<br>
-                MMSI: ${vessel.mmsi}<br>
-                Type: ${vessel.ship_type}<br>
-                Speed: ${vessel.speed} knots<br>
-                Heading: ${vessel.heading}°
-            `);
+            markers[vessel.mmsi].getPopup().setContent(popupContent);
         }
     });
 });
