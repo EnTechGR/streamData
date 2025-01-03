@@ -59,7 +59,9 @@ Start if req
 ```
 docker start postgres-db
 ```
-
+```
+npm start
+```
 
 ### Preview
 
